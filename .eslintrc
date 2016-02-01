@@ -1,0 +1,33 @@
+{
+  "parser": "babel-eslint",
+  "plugins": [
+    "react"
+  ],
+  "ecmaFeatures": {
+    "jsx": true
+  },
+  "env": {
+    "browser": true,
+    "node": true,
+    "jquery": true
+  },
+  "globals": {
+    "Backbone": true
+  },
+  "rules": {
+    "react/jsx-key": 2,                  // enforce key property in iterated components
+    "react/jsx-no-duplicate-props": 2,   // prevent duplicate properties
+    "react/jsx-no-undef": 2,             // prevent undefined variables in JSX
+    "react/jsx-pascal-case": 2,          // enforce pascal cased components
+    "react/jsx-uses-react": 2,           // require react when using react components
+    "react/jsx-uses-vars": 2,            // prevent unused propeties in jsx
+    "react/no-danger": 2,                // prevent dangerous properties
+    "react/no-did-mount-set-state": 1,   // prevent using setState in didMount
+    "react/no-did-update-set-state": 1,  // prevent using setState in didUpdate
+    "react/no-direct-mutation-state": 1, // prevent modifying .state property
+    "react/no-unknown-property": 2,      // prevent usage of unknown properties
+    "react/react-in-jsx-scope": 2,       // prevent missing React when using JSX
+    "react/wrap-multilines": 2,          // prevent missing parenthesis in multiline JSX
+    "jsx-quotes": [2, "prefer-single"]   // enforce single quotes
+  }
+}
