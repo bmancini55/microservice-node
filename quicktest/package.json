@@ -1,0 +1,16 @@
+{
+  "name": "fulltest",
+  "version": "0.1.0",
+  "description": "Testing all pieces of the infrastructure",
+  "scripts": {
+    "start:gateway": "babel-node gateway.js"
+  },
+  "author": "Brian <bmancini@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "amqplib": "^0.4.1",
+    "babel": "^5.8.35",
+    "body-parser": "^1.15.0",
+    "express": "^4.13.4"
+  }
+}
