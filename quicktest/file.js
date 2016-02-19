@@ -18,7 +18,7 @@ async function start() {
   await channel.assertQueue('file.read', { durable: true });
   await channel.assertQueue('file.read.complete', { durable: false });
 
-  channel.consume('file.read', (msg) => handle('file.read', channel, msg, onFile));
+  channel.consume('file.read', (msg) => handle('file.read', channel, msg, onFile).catch(err => console.log(err.stack)));
 }
 
 start().catch(err => console.log(err.stack));
@@ -29,15 +29,18 @@ start().catch(err => console.log(err.stack));
  */
 async function handle(event, channel, msg, handler) {
   let result = await handler(channel, msg);
+  let buffer = result;
+  let correlationId = msg.properties.correlationId;
   if(result) {
-    let correlationId = msg.properties.correlationId;
-    let buffer = result;
     if(!result instanceof Buffer) {
       buffer = new Buffer(result);
     }
-    channel.sendToQueue(event + '.complete', buffer, { correlationId });
-    channel.ack(msg);
   }
+  else {
+    buffer = new Buffer('ok');
+  }
+  channel.sendToQueue(event + '.complete', buffer, { correlationId });
+  channel.ack(msg);
 }
 
 

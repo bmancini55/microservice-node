@@ -36,24 +36,29 @@ async function start() {
   app.get('/file', (req, res, next) => file(req, res).catch(next));
 
   let callbacks = {}
-  channel.consume('file.read.complete', (msg) => {
-    let correlationId = msg.properties.correlationId;
-    console.log('Received message %s', correlationId);
-    if(callbacks[correlationId]) {
-      callbacks[correlationId](msg);
-    }
-  }, { noAck: true });
+
+  function publish(queue, data) {
+    channel.consume(queue + '.complete', (msg) => {
+      let correlationId = msg.properties.correlationId;
+      console.log('Received message %s', correlationId);
+      if(callbacks[correlationId]) {
+        callbacks[correlationId](msg);
+      }
+    }, { noAck: true });
+
+    return new Promise((resolve) => {
+      let correlationId = generateUuid();
+      channel.sendToQueue(queue, new Buffer(data), { correlationId });
+      callbacks[correlationId] = (msg) => resolve(msg.content.toString());
+    });
+  }
+
 
   async function file(req, res, next) {
-    let correlationId = generateUuid();
     let fileId = req.query.fileId;
-    console.log('Requesting %s: %s', fileId);
-
-    await channel.sendToQueue('file.read', new Buffer(fileId), { correlationId });
-    callbacks[correlationId] = (msg) => {
-      console.log('Completing %s', correlationId);
-      res.send(msg.content.toString());
-    }
+    console.log('Requesting %s', fileId);
+    let result = await publish('file.read', fileId);
+    res.send(result);
   }
 
   // async function extract(req, res, next) {
