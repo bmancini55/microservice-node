@@ -35,6 +35,14 @@ async function start() {
 
   app.get('/file', (req, res, next) => file(req, res).catch(next));
 
+  let callbacks = {}
+  channel.consume('file.read.complete', (msg) => {
+    let correlationId = msg.properties.correlationId;
+    console.log('Received message %s', correlationId);
+    if(callbacks[correlationId]) {
+      callbacks[correlationId](msg);
+    }
+  }, { noAck: true });
 
   async function file(req, res, next) {
     let correlationId = generateUuid();
@@ -42,14 +50,10 @@ async function start() {
     console.log('Requesting %s: %s', fileId);
 
     await channel.sendToQueue('file.read', new Buffer(fileId), { correlationId });
-
-    channel.consume('file.read.complete', (msg) => {
-      console.log('Received message %s', msg.properties.correlationId);
-      console.log('Expected %s', correlationId);
-      if(msg.properties.correlationId === correlationId) {
-        res.send(msg.content.toString());
-      }
-    }, { noAck: true });
+    callbacks[correlationId] = (msg) => {
+      console.log('Completing %s', correlationId);
+      res.send(msg.content.toString());
+    }
   }
 
   // async function extract(req, res, next) {
