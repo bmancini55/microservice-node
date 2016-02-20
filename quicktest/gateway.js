@@ -58,7 +58,7 @@ async function start() {
    * that will be managed by the farmework:
    *
    * 1. Starts a consumer channel on the queue.name.complete queue that looks for
-   *    correlationIds in the callback object. This is necessary because the consumer,
+   *    correlationIds in the callback lookup. This is necessary because the consumer,
    *    once started will blindly listen for any messages in the completion queue
    *    and we wnat to filter to just the ones that match our correlationId... this
    *    may be an inefficiency (but was designed to allow pubsub) like behavior.
@@ -67,27 +67,38 @@ async function start() {
    *    to only handle messages it cares about.  I'm not sure if the binding/unbinding
    *    overhead would perform better though.  Something to test. I digress.
    *
-   * 2. The data is emitted onto the queue with the new correlationId
-   * 3. A new callback is added to the callback lookup with the correlation Id. This callback
+   * 2. Starts a consumer channel on the queue.name.error queue that looks for failure
+   *    that match our correlationId in the callback lookup.
+   * 3. The data is emitted onto the queue with the new correlationId
+   * 4. A new callback is added to the callback lookup with the correlation Id. This callback
    *    is a resolve
    *
-   * This returns a promise
-   *
+   * This returns a promise.
    */
   function publish(queue, data) {
-    // Consume on the completion change and execute the corresponding
+    // Consume on the completion queue and execute the corresponding
     // callback if it matches our correlationId.
     channel.consume(queue + '.complete', (msg) => {
+      console.log('Received message %s', msg.properties.correlationId);
       let correlationId = msg.properties.correlationId;
-      console.log('Received message %s', correlationId);
       if(callbacks[correlationId]) {
-        callbacks[correlationId](msg);
+        callbacks[correlationId](null, msg.content.toString());
+      }
+    }, { noAck: true });
+
+    // Consome on the error queue and excute the corresponding
+    // callback if it matches our correlationId.
+    channel.consume(queue + '.error', (msg) => {
+      console.log('Received error %s', msg.properties.correlationId);
+      let correlationId = msg.properties.correlationId;
+      if(callbacks[correlationId]) {
+        callbacks[correlationId](msg.content.toString())
       }
     }, { noAck: true });
 
     // Return a promise that will resolve when the callback is executed. This
     // allows for usage of async/await by the consumer!
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       // create correlationId
       let correlationId = uuid.v4();
 
@@ -97,7 +108,10 @@ async function start() {
 
       // Create a callback lambda that resolves the current promise with the
       // results of the message!
-      callbacks[correlationId] = (msg) => resolve(msg.content.toString());
+      callbacks[correlationId] = (err, value) => {
+        if(err) reject(err);
+        else resolve(value);
+      }
     });
   }
 }

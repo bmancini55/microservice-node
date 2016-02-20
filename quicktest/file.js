@@ -28,6 +28,7 @@ async function start() {
   // asserts that the following queues are available
   await channel.assertQueue('file.read', { durable: true });
   await channel.assertQueue('file.read.complete', { durable: false });
+  await channel.assertQueue('file.read.error', { durable: false });
 
   // Begins consuming the queue using the "frameworks" handler method.
   // This will be converted into a middleware function so that multiple methods
@@ -42,26 +43,36 @@ start().catch(err => console.log(err.stack));
 /**
  * Handler method for all inbound events that are being watched.  This method
  * is bound to a specific event signature and has a processing lambda that
- * can return a result. This method will auto-ack via a new event that appends '.complete'
+ * can return a result.
+ *
+ * This method will auto-ack via a new event that appends '.complete'
  * to the event name.
+ *
+ * This method will auto-ack with an error that appends '.error'
+ * to the event name if there is an error during processing.
  *
  * IF the processing lambda returns a result, that result is sent back as the ACK.
  * IF there is no result from the processing lambda, an empty object is returned.
  */
 async function handle(event, channel, msg, processMsg) {
-  let result = await processMsg(channel, msg);
-  let buffer = result;
   let correlationId = msg.properties.correlationId;
-  if(result) {
-    if(!result instanceof Buffer) {
-      buffer = new Buffer(result);
+  try {
+    let result = await processMsg(channel, msg);
+    let buffer = result;
+    if(result) {
+      if(!result instanceof Buffer) {
+        buffer = new Buffer(result);
+      }
     }
+    else {
+      buffer = new Buffer({});
+    }
+    channel.sendToQueue(event + '.complete', buffer, { correlationId });
+    channel.ack(msg);
   }
-  else {
-    buffer = new Buffer({});
+  catch(ex) {
+    channel.sendToQueue(event + '.error', new Buffer(ex.stack), { correlationId });
   }
-  channel.sendToQueue(event + '.complete', buffer, { correlationId });
-  channel.ack(msg);
 }
 
 
