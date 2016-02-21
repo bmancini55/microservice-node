@@ -26,9 +26,13 @@ async function start() {
   console.log('Connected to RabbitMQ');
 
   // asserts that the following queues are available
+  await channel.assertExchange('app', 'topic', { durable: true });
   await channel.assertQueue('file.read', { durable: true });
-  await channel.assertQueue('file.read.complete', { durable: false });
-  await channel.assertQueue('file.read.error', { durable: false });
+  await channel.bindQueue('file.read', 'app', 'file.read');
+
+  //await channel.assertQueue('file.read', { durable: true });
+  await channel.assertExchange('complete', 'topic', { durable: false });
+  await channel.assertExchange('error', 'topic', { durable: false });
 
   // Begins consuming the queue using the "frameworks" handler method.
   // This will be converted into a middleware function so that multiple methods
@@ -67,11 +71,12 @@ async function handle(event, channel, msg, processMsg) {
     else {
       buffer = new Buffer({});
     }
-    channel.sendToQueue(event + '.complete', buffer, { correlationId });
+    channel.publish('complete', event + '.complete', buffer, { correlationId });
     channel.ack(msg);
   }
   catch(ex) {
-    channel.sendToQueue(event + '.error', new Buffer(ex.stack), { correlationId });
+    channel.publish('error', event + '.error', new Buffer(ex.stack), { correlationId });
+    channel.ack(msg);
   }
 }
 

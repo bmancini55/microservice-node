@@ -13,20 +13,24 @@ This project contains several parts of a microservice infrastructure. The goal i
 
 This to be replaced by an actual diagram...
 
-on "listen"
+####on "listen"
+* demand a topic exchange (initial single exchange called app)
 * demand a queue based on topic name
-* demand a central "app" exchange for logging etc (this MAY be a bottleneck in the system and may be a poor decision... RESEARCH)
-* bind queue to exchange
-* consume queue as a worker with optional prefetch
+* bind the queue to the topic exchange
+* consume the queue using round robin
+* demand a "complete" topic exchange
+* demand an "error" topic exchange
 
 when "complete"
-* demand a "complete" exchange
-* publish complete message to exchange
+* publish complete message to exchange with complete or error topic
 
-before publishing any messages into the system...
-* demand a "complete" exchange as a fanout (pub/sub)
-* demand a unique queue for me
-* bind unique queue to "complete" exchange
+
+####before publishing any messages into the system...
+* generate an exclusive queue for the service
+* demand a "complete" exchange
+* bind exclusive queue to "complete" exchange
+* demand an "error" excahnge
+* bind exclusive queue to "error" exchange
 
 
 ## Getting Started

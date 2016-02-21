@@ -22,8 +22,16 @@ async function start() {
   console.log('Connected to RabbitMQ');
 
   // asserts that the following queues are available
+  await channel.assertExchange('app', 'topic', { durable: true });
   await channel.assertQueue('file.read', { durable: true });
-  await channel.assertQueue('file.read.complete', { durable: false });
+  await channel.bindQueue('file.read', 'app', 'file.read');
+
+  await channel.assertExchange('complete', 'topic', { durable: false });
+  await channel.assertExchange('error', 'topic', { durable: false });
+
+  let callbackQueue = await channel.assertQueue('', { exclusive: true });
+  await channel.bindQueue(callbackQueue.queue, 'complete', 'file.read.complete');
+  await channel.bindQueue(callbackQueue.queue, 'error', 'file.read.error');
 
   // bootstrap the express application
   let app = express();
@@ -76,23 +84,13 @@ async function start() {
    * This returns a promise.
    */
   function publish(queue, data) {
-    // Consume on the completion queue and execute the corresponding
+    // Consume on the completion and errors queue and execute the corresponding
     // callback if it matches our correlationId.
-    channel.consume(queue + '.complete', (msg) => {
+    channel.consume(callbackQueue.queue, (msg) => {
       console.log('Received message %s', msg.properties.correlationId);
       let correlationId = msg.properties.correlationId;
       if(callbacks[correlationId]) {
-        callbacks[correlationId](null, msg.content.toString());
-      }
-    }, { noAck: true });
-
-    // Consome on the error queue and excute the corresponding
-    // callback if it matches our correlationId.
-    channel.consume(queue + '.error', (msg) => {
-      console.log('Received error %s', msg.properties.correlationId);
-      let correlationId = msg.properties.correlationId;
-      if(callbacks[correlationId]) {
-        callbacks[correlationId](msg.content.toString())
+        callbacks[correlationId](msg.content.toString());
       }
     }, { noAck: true });
 
@@ -104,14 +102,11 @@ async function start() {
 
       // emit to queue. This will be converted to emit to the worker exchange
       // based on the proposed architecture.
-      channel.sendToQueue(queue, new Buffer(data), { correlationId });
+      channel.publish('app', queue, new Buffer(data), { correlationId });
 
       // Create a callback lambda that resolves the current promise with the
       // results of the message!
-      callbacks[correlationId] = (err, value) => {
-        if(err) reject(err);
-        else resolve(value);
-      }
+      callbacks[correlationId] = (value) => resolve(value);
     });
   }
 }
