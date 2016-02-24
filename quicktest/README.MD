@@ -11,7 +11,17 @@ This project contains several parts of a microservice infrastructure. The goal i
 
 ## Messaging implementation:
 
-This to be replaced by an actual diagram...
+![Eventing Diagram](Eventing.png?raw=true "Eventing Diagram")
+
+### Concrete example:
+1. API Gateway receives a get request for a file
+2. API Gateway publishes a 'file.read' event into the 'file' exchange
+3. An instance of a File Service pulls the 'file.read' event from the 'file.read' queue in a round robin manner
+4. The File Service reads the file
+5. The File Service publishes the 'file.read.complete' event to the 'file.completion' exchange with the file bytes as the payload
+5. The API Gateway receives the 'file.read.complete' event via it's own exclusive queue that is bound to the 'file.completion' exchange
+
+### Implementation details
 
 ####on "listen"
 * demand a topic exchange (initial single exchange called app)
