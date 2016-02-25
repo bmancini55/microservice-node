@@ -30,7 +30,7 @@ class App {
     this.callbackQueue = await this.channel.assertQueue('', { exclusive: true });
     this.channel.consume(this.callbackQueue.queue, (msg) => {
       let correlationId = msg.properties.correlationId;
-      console.log('Consuming %s', correlationId);
+      console.log(' [f] completed %s', correlationId);
       if(this.callbacks[correlationId]) {
         this.callbacks[correlationId](msg.content.toString());
       }
@@ -96,7 +96,7 @@ class App {
    */
   async _handle(event, channel, msg, processMsg) {
     let correlationId = msg.properties.correlationId;
-    console.log(' [a] Handing %s %s', event, correlationId);
+    console.log(' [f] handing %s %s', event, correlationId);
     try {
       let result = await processMsg(msg, { channel, event });
       let buffer = result;

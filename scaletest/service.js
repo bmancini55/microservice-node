@@ -1,19 +1,37 @@
 
 const BROKER_PATH = process.env.BROKER_PATH;
 const SERVICE_NAME = process.env.SERVICE_NAME;
+const SERVICE_DEPS = process.env.SERVICE_DEPS || '';
 
 let framework = new (require('./app'))({ name: SERVICE_NAME });
 
 framework.on(SERVICE_NAME + '.read', async (msg) => {
-  let delayedValue = new Promise((resolve) => {
-    let data = msg.content.toString();
-    let delay = Math.floor(Math.random() * 100) + 1
-    setTimeout(() => resolve(data + ' DONE!'), delay);
-    console.log(' [s] delay %d for \'%s\'', delay, data);
-  });
+  let result = '';
+  let data = msg.content.toString();
 
-  let result = await delayedValue;
+  // process each dependency
+  let depEvents = getDepEvents();
+  for(let depEvent of depEvents) {
+    result += await framework.publish(depEvent, data);
+  }
+
+  // process me
+  result += await getResult(data);
   return result;
 });
 
 framework.start(BROKER_PATH).catch(console.log);
+
+
+// HELPERS
+
+function getDepEvents() {
+  return SERVICE_DEPS.split(',').filter(p => p !== '').map(p => p.trim() + '.read');
+}
+
+function getResult(data) {
+  return new Promise((resolve) => {
+    let delay = Math.floor(Math.random() * 10) + 1
+    setTimeout(() => resolve(SERVICE_NAME), delay);
+  });
+}
