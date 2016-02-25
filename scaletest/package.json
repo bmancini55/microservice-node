@@ -1,0 +1,19 @@
+{
+  "name": "scaletest",
+  "version": "0.1.0",
+  "description": "Scale testing all pieces of the infrastructure",
+  "scripts": {
+    "start:gateway": "babel-node gateway.js",
+    "start:service": "babel-node service.js"
+  },
+  "author": "Brian <bmancini@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "amqplib": "^0.4.1",
+    "babel": "^5.8.35",
+    "bluebird": "^3.3.1",
+    "body-parser": "^1.15.0",
+    "express": "^4.13.4",
+    "node-uuid": "^1.4.7"
+  }
+}
