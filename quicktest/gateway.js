@@ -1,4 +1,4 @@
-/**
+  /**
  * This represents an API Gateway where REST is used to interact with the system.
  * To me, solving this interaction piece is important since it dictates how
  * an existing monolith would interact with an event-based system.
@@ -32,6 +32,16 @@ async function start() {
   let callbackQueue = await channel.assertQueue('', { exclusive: true });
   await channel.bindQueue(callbackQueue.queue, 'complete', 'file.read.complete');
   await channel.bindQueue(callbackQueue.queue, 'error', 'file.read.error');
+
+  // Consume on the completion and errors queue and execute the corresponding
+  // callback if it matches our correlationId.
+  channel.consume(callbackQueue.queue, (msg) => {
+    console.log('Received message %s', msg.properties.correlationId);
+    let correlationId = msg.properties.correlationId;
+    if(callbacks[correlationId]) {
+      callbacks[correlationId](msg.content.toString());
+    }
+  }, { noAck: true });
 
   // bootstrap the express application
   let app = express();
@@ -84,16 +94,6 @@ async function start() {
    * This returns a promise.
    */
   function publish(queue, data) {
-    // Consume on the completion and errors queue and execute the corresponding
-    // callback if it matches our correlationId.
-    channel.consume(callbackQueue.queue, (msg) => {
-      console.log('Received message %s', msg.properties.correlationId);
-      let correlationId = msg.properties.correlationId;
-      if(callbacks[correlationId]) {
-        callbacks[correlationId](msg.content.toString());
-      }
-    }, { noAck: true });
-
     // Return a promise that will resolve when the callback is executed. This
     // allows for usage of async/await by the consumer!
     return new Promise((resolve, reject) => {
