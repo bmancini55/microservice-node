@@ -40,6 +40,8 @@ class App {
     for(let binding of this._deferredBindings) {
       this._on(binding.event, binding.processMsg);
     }
+
+    console.log('Service has successfully started');
   }
 
   /**
@@ -61,6 +63,7 @@ class App {
    */
   async publish(event, data) {
     let correlationId = uuid.v4();
+    console.log(' [f] publishing %s %s', event, correlationId);
 
     await this.channel.assertExchange('app', 'topic', { durable: true });
     await this.channel.assertExchange('complete', 'topic', { durable: false });
