@@ -1,0 +1,19 @@
+{
+  "name": "extraction",
+  "version": "0.1.0",
+  "description": "Testing extraction",
+  "scripts": {
+    "start:gateway": "babel-node gateway.js",
+    "start:file-service": "babel-node file-service.js",
+    "start:text-service": "babel-node text-service.js",
+  },
+  "author": "Brian <bmancini@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "amqplib": "^0.4.1",
+    "babel": "^5.8.35",
+    "body-parser": "^1.15.0",
+    "express": "^4.13.4",
+    "node-uuid": "^1.4.7"
+  }
+}
