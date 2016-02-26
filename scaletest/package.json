@@ -4,7 +4,9 @@
   "description": "Scale testing all pieces of the infrastructure",
   "scripts": {
     "start:gateway": "babel-node gateway.js",
-    "start:service": "babel-node service.js"
+    "start:service": "babel-node service.js",
+    "build:gateway": "docker build -t bmancini55/ms-gateway -f Dockerfile-gateway .",
+    "build:service": "docker build -t bmancini55/ms-service -f Dockerfile-service ."
   },
   "author": "Brian <bmancini@gmail.com>",
   "license": "MIT",
