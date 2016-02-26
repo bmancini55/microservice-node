@@ -3,7 +3,7 @@ const BROKER_PATH = process.env.BROKER_PATH;
 const SERVICE_NAME = process.env.SERVICE_NAME;
 const SERVICE_DEPS = process.env.SERVICE_DEPS || '';
 
-let framework = new (require('./app'))({ name: SERVICE_NAME });
+let framework = require('./app')({ name: SERVICE_NAME });
 
 framework.on(SERVICE_NAME + '.read', async (msg, { publish }) => {
   let result = '';

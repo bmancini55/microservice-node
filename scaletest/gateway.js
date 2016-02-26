@@ -1,6 +1,6 @@
 
 const BROKER_PATH = process.env.BROKER_PATH;
-let framework = new (require('./app'))();
+let framework = require('./app')();
 let app = require('express')()
 
 app.get('/', (req, res, next) => test(req, res).catch(next));
