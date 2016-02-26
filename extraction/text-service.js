@@ -1,6 +1,6 @@
 
-const BROKER_PATH = process.env.BROKER_PATH;
-const TIKA_PATH = process.env.TIKA_PATH || 'http://localhost';
+const BROKER_PATH = process.argv[2] || process.env.BROKER_PATH;
+const TIKA_PATH = process.argv[3] || process.env.TIKA_PATH;
 
 let fs = require('fs');
 let path = require('path');

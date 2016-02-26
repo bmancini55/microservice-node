@@ -1,5 +1,5 @@
 
-const BROKER_PATH = process.env.BROKER_PATH;
+const BROKER_PATH = process.argv[2] || process.env.BROKER_PATH;
 
 let fs = require('fs');
 let request = require('request');

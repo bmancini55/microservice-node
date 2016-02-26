@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "description": "Testing extraction",
   "scripts": {
-    "start:gateway": "babel-node gateway.js",
-    "start:file-service": "babel-node file-service.js",
-    "start:text-service": "babel-node text-service.js"
+    "start:gateway": "babel-node gateway.js amqp://192.168.99.100",
+    "start:file-service": "babel-node file-service.js amqp://192.168.99.100 ",
+    "start:text-service": "babel-node text-service.js amqp://192.168.99.100 http://192.168.99.100"
   },
   "author": "Brian <bmancini@gmail.com>",
   "license": "MIT",

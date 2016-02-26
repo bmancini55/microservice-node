@@ -117,8 +117,7 @@ class App {
 
       // calls the processMsg express with the message and passes in the
       // channel, event, and bound publish method
-      let message = msg.content.toString();
-      let result = await processMsg(message, { ctx: this, event, publish: contextPublish });
+      let result = await processMsg(msg.content.toString(), { ctx: this, event, publish: contextPublish });
 
       // converts the results into a buffer
       let buffer = result;
