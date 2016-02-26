@@ -61,8 +61,7 @@ class App {
   /**
    * [publish description]
    */
-  async publish(event, data) {
-    let correlationId = uuid.v4();
+  async publish(event, data, correlationId = uuid.v4()) {
     console.log(' [f] publishing %s %s', event, correlationId);
 
     await this.channel.assertExchange('app', 'topic', { durable: true });
@@ -101,7 +100,14 @@ class App {
     let correlationId = msg.properties.correlationId;
     console.log(' [f] handing %s %s', event, correlationId);
     try {
-      let result = await processMsg(msg, { channel, event });
+      // creates a publish method that is bound the current correlationId
+      let contextPublish = (event, data) => this.publish(event, data, correlationId);
+
+      // calls the processMsg express with the message and passes in the
+      // channel, event, and bound publish method
+      let result = await processMsg(msg, { channel, event, publish: contextPublish });
+
+      // converts the results into a buffer
       let buffer = result;
       if(result !== undefined) {
         if(!(result instanceof Buffer)) {

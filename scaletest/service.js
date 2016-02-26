@@ -5,14 +5,14 @@ const SERVICE_DEPS = process.env.SERVICE_DEPS || '';
 
 let framework = new (require('./app'))({ name: SERVICE_NAME });
 
-framework.on(SERVICE_NAME + '.read', async (msg) => {
+framework.on(SERVICE_NAME + '.read', async (msg, { publish }) => {
   let result = '';
   let data = msg.content.toString();
 
   // process each dependency
   let depEvents = getDepEvents();
   for(let depEvent of depEvents) {
-    result += await framework.publish(depEvent, data);
+    result += await publish(depEvent, data);
   }
 
   // process me
