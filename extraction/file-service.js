@@ -34,7 +34,7 @@ function getFile(path) {
           body: buffer.toString('base64')
         };
         console.log(' [x] %d %d %s', contentLength, buffer.length, contentType);
-        resolve(JSON.stringify(result));
+        resolve(result);
       })
     }).on('error', reject);
   });

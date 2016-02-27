@@ -11,8 +11,7 @@ framework.start(BROKER_PATH).catch(console.log);
 framework.on('text.extract', extractText);
 
 async function extractText(path, { publish }) {
-  let str = await publish('file.bytes', path);
-  let file = JSON.parse(str);
+  let file = await publish('file.bytes', path);
   file.body = new Buffer(file.body, 'base64');
   let result = await callTika(file);
   return result;
@@ -44,18 +43,5 @@ async function callTika(file) {
     req.on('error', reject);
     req.write(file.body);
     req.end();
-    // request.put({
-    //   url: TIKA_PATH + ':9998/tika',
-    //   body: file.body,
-    //   headers: {
-    //     'Content-type': file.contentType
-    //   }
-    // }, (err, response, body) => {
-    //   console.log(' [x] Status code %s', response.statusCode);
-    //   if(err) reject(err);
-    //   else {
-    //     resolve(body);
-    //   }
-    // });
   });
 }

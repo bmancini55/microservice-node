@@ -27,5 +27,5 @@ async function extract(req, res) {
   if(!path) return res.status(400).send('path is required');
 
   let result = await framework.publish('text.extract', path);
-  res.send(result);
+  res.set('content-type', 'text/plain').send(result);
 }

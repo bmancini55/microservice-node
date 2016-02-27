@@ -40,7 +40,8 @@ class App {
       let correlationId = msg.properties.correlationId;
       console.log(' [f] completed %s', correlationId);
       if(this._callbacks[correlationId]) {
-        this._callbacks[correlationId](msg.content.toString());
+        let value = _convertFromBuffer(msg.content);
+        this._callbacks[correlationId](value);
       }
     }, { noAck: true });
 
@@ -82,8 +83,9 @@ class App {
     await this._channel.bindQueue(this._callbackQueue.queue, 'error', event + '.error.' + correlationId);
 
     return new Promise((resolve, reject) => {
+      let buffer = _convertToBuffer(data);
       this._callbacks[correlationId] = (value) => resolve(value);
-      this._channel.publish('app', event, new Buffer(data), { correlationId });
+      this._channel.publish('app', event, buffer, { correlationId });
     });
   }
 
@@ -117,25 +119,53 @@ class App {
 
       // calls the processMsg express with the message and passes in the
       // channel, event, and bound publish method
-      let result = await processMsg(msg.content.toString(), { ctx: this, event, publish: contextPublish });
+      let input = _convertFromBuffer(msg.content);
+      let result = await processMsg(input, { ctx: this, event, publish: contextPublish });
+      let buffer = _convertToBuffer(result);
 
-      // converts the results into a buffer
-      let buffer = result;
-      if(result !== undefined) {
-        if(!(result instanceof Buffer)) {
-          buffer = new Buffer(result);
-        }
-      }
-      else {
-        buffer = new Buffer('');
-      }
       this._channel.publish('complete', event + '.complete.' + correlationId, buffer, { correlationId });
       this._channel.ack(msg);
     }
     catch(ex) {
-      this._channel.publish('error', event + '.error.' + correlationId, new Buffer(ex.stack), { correlationId });
+      let buffer = await _convertToBuffer(ex.stack);
+      this._channel.publish('error', event + '.error.' + correlationId, buffer, { correlationId });
       this._channel.ack(msg);
     }
   }
+}
 
+function _convertToBuffer(result) {
+    let type;
+    let data;
+
+    if(result instanceof Buffer) {
+      type = 'buffer';
+      data = result;
+    }
+    else if(typeof result === 'object') {
+      type = 'object';
+      data = new Buffer(JSON.stringify(result));
+    }
+    else {
+      type = typeof result;
+      data = new Buffer(result);
+    }
+    return Buffer.concat([ new Buffer(type), data ]);
+  }
+
+function _convertFromBuffer(buffer) {
+  let text = buffer.toString();
+  let result;
+
+  if(text.startsWith('buffer')) {
+    result = new Buffer(text.substring('buffer'.length));
+  }
+  else if(text.startsWith('object')) {
+    result = text.substring('object'.length);
+    result = JSON.parse(result);
+  }
+  else {
+    result = text.substring('string'.length);
+  }
+  return result;
 }
