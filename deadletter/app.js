@@ -75,17 +75,14 @@ class App {
   async publish(event, data, correlationId = uuid.v4()) {
     console.log(' [f] publishing %s %s', event, correlationId);
 
+    // ensure topic exchange
     await this._channel.assertExchange('app', 'topic', { durable: true });
-    await this._channel.assertExchange('complete', 'topic', { durable: false });
-    await this._channel.assertExchange('error', 'topic', { durable: false });
 
-    await this._channel.bindQueue(this._callbackQueue.queue, 'complete', event + '.complete.' + correlationId);
-    await this._channel.bindQueue(this._callbackQueue.queue, 'error', event + '.error.' + correlationId);
-
+    // pbulis the event and include the correlationId and the replyTo queue
     return new Promise((resolve, reject) => {
       let buffer = _convertToBuffer(data);
       this._callbacks[correlationId] = (value) => resolve(value);
-      this._channel.publish('app', event, buffer, { correlationId });
+      this._channel.publish('app', event, buffer, { correlationId, replyTo: this._callbackQueue.queue });
     });
   }
 
@@ -97,9 +94,6 @@ class App {
     console.log('Binding %s', event);
 
     await this._channel.assertExchange('app', 'topic', { durable: true });
-    await this._channel.assertExchange('complete', 'topic', { durable: false });
-    await this._channel.assertExchange('error', 'topic', { durable: false });
-
     await this._channel.assertQueue(event, { durable: true });
     await this._channel.bindQueue(event, 'app', event);
 
@@ -112,7 +106,9 @@ class App {
    */
   async _handle(event, msg, processMsg) {
     let correlationId = msg.properties.correlationId;
+    let replyTo = msg.properties.replyTo;
     console.log(' [f] handing %s %s', event, correlationId);
+
     try {
       // creates a publish method that is bound the current correlationId
       let contextPublish = (event, data) => this.publish(event, data, correlationId);
@@ -123,13 +119,20 @@ class App {
       let result = await processMsg(input, { ctx: this, event, publish: contextPublish });
       let buffer = _convertToBuffer(result);
 
-      this._channel.publish('complete', event + '.complete.' + correlationId, buffer, { correlationId });
+      // if this was an rpc call, then we reply back directly to the originator
+      if(replyTo)
+        this._channel.sendToQueue(replyTo, buffer, { correlationId });
+
+      // push the completion event back to the main queue
+      this._channel.publish('app', event + '.complete', buffer, { correlationId });
+
+      // ack the message to remove it
       this._channel.ack(msg);
     }
     catch(ex) {
       let buffer = await _convertToBuffer(ex.stack);
-      this._channel.publish('error', event + '.error.' + correlationId, buffer, { correlationId });
-      this._channel.ack(msg);
+      this._channel.publish('app', event + '.error', buffer, { correlationId });
+      this._channel.nack(msg);
     }
   }
 }

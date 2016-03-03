@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "description": "Testing deadlettering",
   "scripts": {
-    "start:gateway": "babel-node gateway.js"
+    "start:gateway": "babel-node gateway.js",
+    "start:echo": "babel-node echo-service.js",
+    "start:listener": "babel-node listener-service.js"
   },
   "author": "Brian <bmancini@gmail.com>",
   "license": "MIT",
