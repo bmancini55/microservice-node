@@ -70,11 +70,18 @@ async function getContentType(path) {
     case 'pdf': return 'application/pdf';
     case 'dat': return 'application/octet-stream';
     case 'dbf': return 'application/octet-stream';
+    case 'wpd': return 'application/octet-stream';
+    case 'wmf': return 'application/octet-stream';
+    case 'mdb': return 'application/octet-stream';
     case 'doc': return 'application/msword';
+    case 'ppt': return 'application/vnd.ms-powerpoint';
     case 'xls': return 'application/vnd.ms-excel';
     case 'rtf': return 'application/rtf';
     case 'gif': return 'image/gif';
+    case 'jpg': return 'image/jpg';
+    case 'tif': return 'image/tiff';
     case 'txt': return 'text/plain';
+    case 'mp3': return 'audio/mpeg3';
     default: return 'text/plain';
   }
 }
