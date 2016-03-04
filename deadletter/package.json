@@ -5,7 +5,8 @@
   "scripts": {
     "start:gateway": "babel-node gateway.js",
     "start:echo": "babel-node echo-service.js",
-    "start:listener": "babel-node listener-service.js"
+    "start:listener": "babel-node listener-service.js",
+    "start:error": "babel-node error-service.js"
   },
   "author": "Brian <bmancini@gmail.com>",
   "license": "MIT",

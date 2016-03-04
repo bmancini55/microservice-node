@@ -56,7 +56,46 @@ class App {
       this._listener(binding.event, binding.processMsg);
     }
 
+    // this should be applied to middleware!
+    this._configDeadletter();
+
     console.log('Service has successfully started');
+  }
+
+  /**
+   * Adds deadletter listener to the current node
+   * @return {[type]} [description]
+   */
+  async _configDeadletter() {
+    this._channel.assertExchange('deadletter', 'fanout', { durable: false });
+    this._channel.assertQueue('deadletter', { autoDelete: false });
+    this._channel.bindQueue('deadletter', 'deadletter', '');
+
+    this._channel.consume('deadletter', (msg) => this._handleDeadletter(msg).catch(console.log));
+  }
+
+  /**
+   * Handle a deadletter message by replyig with a failure back to the original
+   * requestor, publishing a general error event back into the app, and
+   * nacking the message as a failure (this last part may not be necessary if there
+   * already a failure).
+   *
+   * We may need to add some filtering here to prevent .error and .complete calls
+   * from entering this queue.
+   */
+  async _handleDeadletter(msg) {
+    let correlationId = msg.properties.correlationId;
+    let replyTo = msg.properties.replyTo;
+    let event = msg.properties.type;
+    let buffer = _convertToBuffer('Deadlettered');
+    console.log(' [x] handling deadletter for %s', correlationId)
+
+    if(replyTo)
+      this._channel.sendToQueue(replyTo, buffer, { correlationId });
+
+    // publishing an error event will create a retain if no-one is listening
+    //this._channel.publish('app', event + '.error', buffer, { correlationId });
+    this._channel.nack(msg, false, false);
   }
 
   /**
@@ -100,13 +139,13 @@ class App {
     console.log(' [f] publishing %s %s', event, correlationId);
 
     // ensure topic exchange
-    await this._channel.assertExchange('app', 'topic', { durable: true });
+    await this._channel.assertExchange('app', 'topic', { durable: false, alternateExchange: 'deadletter' });
 
     // pbulis the event and include the correlationId and the replyTo queue
     return new Promise((resolve, reject) => {
       let buffer = _convertToBuffer(data);
       this._callbacks[correlationId] = (value) => resolve(value);
-      this._channel.publish('app', event, buffer, { correlationId, replyTo: this._callbackQueue.queue });
+      this._channel.publish('app', event, buffer, { correlationId, replyTo: this._callbackQueue.queue, type: event });
     });
   }
 
@@ -117,8 +156,8 @@ class App {
   async _handler(event, processMsg) {
     console.log('Handling %s', event);
 
-    await this._channel.assertExchange('app', 'topic', { durable: true });
-    await this._channel.assertQueue(event, { durable: true });
+    await this._channel.assertExchange('app', 'topic', { durable: false, alternateExchange: 'deadletter' });
+    await this._channel.assertQueue(event, { durable: false, autoDelete: true, deadLetterExchange: 'deadletter' });
     await this._channel.bindQueue(event, 'app', event);
 
     this._channel.consume(event, (msg) => this._handleMsg(event, msg, processMsg).catch(err => console.log(err.stack)));
@@ -131,8 +170,8 @@ class App {
   async _listener(event, processMsg) {
     console.log('Listening to %s', event);
 
-    await this._channel.assertExchange('app', 'topic', { durable: true });
-    await this._channel.assertQueue(event, { durable: true });
+    await this._channel.assertExchange('app', 'topic', { durable: false, alternateExchange: 'deadletter' });
+    await this._channel.assertQueue(event, { durable: false, autoDelete: true, deadLetterExchange: 'deadletter' });
     await this._channel.bindQueue(event, 'app', event);
 
     this._channel.consume(event, (msg) => this._listenMsg(event, msg, processMsg).catch(err => console.log(err.stack)));
@@ -169,8 +208,16 @@ class App {
     }
     catch(ex) {
       let buffer = await _convertToBuffer(ex.stack);
+
+      // if this was an rpc call, then we reply back directly to the originator
+      if(replyTo)
+        this._channel.sendToQueue(replyTo, buffer, { correlationId });
+
+      // push the error event back to the main queue
       this._channel.publish('app', event + '.error', buffer, { correlationId });
-      this._channel.nack(msg);
+
+      // ack the message as complete
+      this._channel.nack(msg, false, false);
     }
   }
 
