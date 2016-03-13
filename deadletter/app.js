@@ -48,12 +48,12 @@ class App {
 
     // deferred handlers
     for(let binding of this._deferredHandler) {
-      this._handler(binding.event, binding.processMsg);
+      this._handler(binding.event, binding.processMsg, binding.concurrent);
     }
 
     // deferred listeners
     for(let binding of this._deferredListener) {
-      this._listener(binding.event, binding.processMsg);
+      this._listener(binding.event, binding.processMsg, binding.concurrent);
     }
 
     // this should be applied to middleware!
@@ -85,10 +85,11 @@ class App {
    */
   async _handleDeadletter(msg) {
     let correlationId = msg.properties.correlationId;
+    let routingKey = msg.fields.routingKey;
     let replyTo = msg.properties.replyTo;
     let event = msg.properties.type;
     let buffer = _convertToBuffer('Deadlettered');
-    console.log(' [x] handling deadletter for %s', correlationId)
+    console.log(' [x] handling deadletter for %s %s', routingKey, correlationId)
 
     if(replyTo)
       this._channel.sendToQueue(replyTo, buffer, { correlationId });
@@ -102,32 +103,34 @@ class App {
    * Handles an event and responds with a value
    * @param  {[type]} event      [description]
    * @param  {[type]} processMsg [description]
+   * @param  {[type]} concurrent [description]
    * @return {[type]}            [description]
    */
-  async handle(event, processMsg) {
+  async handle(event, processMsg, concurrent = 1) {
     // if not connecet, defer the binding till it's connected
     if(!this._channel)
-      this._deferredHandler.push({ event, processMsg });
+      this._deferredHandler.push({ event, processMsg, concurrent });
 
     // when connected just bind things
     else
-      this._handler(event, processMsg);
+      this._handler(event, processMsg, concurrent);
   }
 
   /**
    * Listens for an event and does not respond with a value
    * @param  {[type]} event      [description]
    * @param  {[type]} processMsg [description]
+   * @param  {[type]} concurrent [description]
    * @return {[type]}            [description]
    */
-  async listen(event, processMsg) {
+  async listen(event, processMsg, concurrent = 1) {
     // if not connecet, defer the binding till it's connected
     if(!this._channel)
-      this._deferredListener.push({ event, processMsg });
+      this._deferredListener.push({ event, processMsg, concurrent });
 
     // when connected just bind things
     else
-      this._listener(event, processMsg);
+      this._listener(event, processMsg, concurrent);
   }
 
 
@@ -153,12 +156,15 @@ class App {
    * Binds the method to the event for handling
    * @private
    */
-  async _handler(event, processMsg) {
+  async _handler(event, processMsg, concurrent) {
     console.log('Handling %s', event);
 
     await this._channel.assertExchange('app', 'topic', { durable: false, alternateExchange: 'deadletter' });
     await this._channel.assertQueue(event, { durable: false, autoDelete: true, deadLetterExchange: 'deadletter' });
     await this._channel.bindQueue(event, 'app', event);
+
+    if(concurrent > 0)
+      await this._channel.prefetch(concurrent);
 
     this._channel.consume(event, (msg) => this._handleMsg(event, msg, processMsg).catch(err => console.log(err.stack)));
   }
@@ -167,12 +173,15 @@ class App {
    * Binds the method to the event for listening
    * @private
    */
-  async _listener(event, processMsg) {
+  async _listener(event, processMsg, concurrent) {
     console.log('Listening to %s', event);
 
     await this._channel.assertExchange('app', 'topic', { durable: false, alternateExchange: 'deadletter' });
     await this._channel.assertQueue(event, { durable: false, autoDelete: true, deadLetterExchange: 'deadletter' });
     await this._channel.bindQueue(event, 'app', event);
+
+    if(concurrent > 0)
+      await this._channel.prefetch(1);
 
     this._channel.consume(event, (msg) => this._listenMsg(event, msg, processMsg).catch(err => console.log(err.stack)));
   }
@@ -233,10 +242,16 @@ class App {
       // channel, event, and bound publish method
       let input = _convertFromBuffer(msg.content);
       await processMsg(input, { ctx: this, event, publish: contextPublish });
+
+      // ack the message so that prefetch works
+      await this._channel.ack(msg);
     }
     catch(ex) {
       let buffer = await _convertToBuffer(ex.stack);
       this._channel.publish('app', event + '.error', buffer, { correlationId });
+
+      // ack the message as complete
+      this._channel.nack(msg, false, false);
     }
   }
 }
