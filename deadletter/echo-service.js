@@ -6,6 +6,5 @@ framework.start(BROKER_PATH).catch(console.log);
 framework.handle('echo', onEcho);
 
 async function onEcho(data) {
-  console.log(' [x] echoing %s', data);
   return data;
 }

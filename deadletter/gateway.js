@@ -19,5 +19,9 @@ async function test(req, res) {
     return res.status(400).send('event is required');
 
   let result = await framework.publish(event, data);
+  await framework.publish(event, data);
+  await framework.publish(event, data);
+  await framework.publish(event, data);
+
   res.send(result);
 }

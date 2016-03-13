@@ -176,14 +176,15 @@ class App {
   async _listener(event, processMsg, concurrent) {
     console.log('Listening to %s', event);
 
+    let queue = event + '.listener';
     await this._channel.assertExchange('app', 'topic', { durable: false, alternateExchange: 'deadletter' });
-    await this._channel.assertQueue(event, { durable: false, autoDelete: true, deadLetterExchange: 'deadletter' });
-    await this._channel.bindQueue(event, 'app', event);
+    await this._channel.assertQueue(queue, { durable: false, autoDelete: true, deadLetterExchange: 'deadletter' });
+    await this._channel.bindQueue(queue, 'app', event);
 
     if(concurrent > 0)
       await this._channel.prefetch(1);
 
-    this._channel.consume(event, (msg) => this._listenMsg(event, msg, processMsg).catch(err => console.log(err.stack)));
+    this._channel.consume(queue, (msg) => this._listenMsg(event, msg, processMsg).catch(err => console.log(err.stack)));
   }
 
   /**
