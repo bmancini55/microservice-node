@@ -5,6 +5,7 @@
 Start the Rabbitmq container
 ```
 docker run -d -p 5672:5672 rabbitmq
+docker run -d -p 5672:5672 -p 15672:15672 --name rabbit1 rabbitmq
 ```
 
 Start the Tika container
