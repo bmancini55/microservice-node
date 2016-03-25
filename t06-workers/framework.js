@@ -59,6 +59,7 @@ export default class {
     this._channel;
     this._replyToQueue;
     this._deferredResponders = [];
+    this._deferredListeners = [];
     debug('created service %s', name);
   }
 
@@ -75,7 +76,8 @@ export default class {
 
     await this._createReplyQueue();
     await this._consumeReplyQueue();
-    await this._attachDeferredRedponders();
+    await this._attachDeferredResponders();
+    await this._attachDeferredListeners();
 
     debug('service has successfully started');
   }
@@ -197,6 +199,91 @@ export default class {
   }
 
   /**
+   * Listens for an event and does not respond with a value
+   * @param  {[type]} event      [description]
+   * @param  {[type]} processMsg [description]
+   * @param  {[type]} concurrent [description]
+   * @return {[type]}            [description]
+   */
+  async on(event, processMsg, options) {
+    // if not connecet, defer the binding till it's connected
+    if(!this._channel)
+      this._deferredListeners.push({ event, processMsg, options });
+
+    // when connected just bind things
+    else
+      await this._listen(event, processMsg, options);
+
+  }
+
+
+  /**
+   * Binds the method to the event for listening
+   * @private
+   */
+  async _listen(event, processMsg, { concurrent = 0 } = {}) {
+    const channel = this.getChannel();
+    const appExchange = this.appExchange;
+
+    await channel.assertExchange(appExchange, 'topic', { durable: false, alternateExchange: 'deadletter' });
+    await channel.assertQueue(event, { durable: false, autoDelete: true, deadLetterExchange: 'deadletter' });
+    await channel.bindQueue(event, appExchange, event);
+
+    if(concurrent > 0)
+      await channel.prefetch(concurrent);
+
+    channel.consume(event, (msg) => this._listenMsg(event, msg, processMsg).catch(err => console.log(err.stack)));
+    debug('listens to %s', event);
+  }
+
+  /**
+   * @private
+   * @param  {[type]} event      [description]
+   * @param  {[type]} msg        [description]
+   * @param  {[type]} processMsg [description]
+   * @return {[type]}            [description]
+   */
+  async _listenMsg(event, msg, processMsg) {
+    let correlationId = msg.properties.correlationId;
+    let channel = this.getChannel();
+    debug('listened to %s %s', event, correlationId);
+
+    try {
+      // calls the processMsg express with the message and passes in the
+      // channel, event, and bound publish method
+      let input = convertFromBuffer(msg.content);
+      await processMsg(input, { ctx: this, event });
+
+      // ack the message so that prefetch works
+      await channel.ack(msg);
+    }
+    catch(ex) {
+      // ack the message as complete
+      channel.nack(msg, false, false);
+    }
+  }
+
+
+  /**
+   * Emits a event
+   * @param  {[type]} event   [description]
+   * @param  {[type]} data    [description]
+   * @param  {[type]} options [description]
+   * @return {[type]}         [description]
+   */
+  async emit(event, data, { correlationId = uuid.v4() } = {}) {
+    debug('emitting %s %s', event, correlationId);
+
+    // ensure topic exchange
+    await this.getChannel().assertExchange(this.appExchange, 'topic', { durable: false, alternateExchange: 'deadletter' });
+
+    // emit event
+    let buffer = convertToBuffer(data);
+    this.getChannel().publish(this.appExchange, event, buffer, { correlationId });
+  }
+
+
+  /**
    * @private
    * @return {[type]} [description]
    */
@@ -227,9 +314,15 @@ export default class {
    * @private
    * @return {[type]} [description]
    */
-  async _attachDeferredRedponders() {
+  async _attachDeferredResponders() {
     for(let binding of this._deferredResponders) {
       await this._respond(binding.event, binding.processMsg, binding.options);
+    }
+  }
+
+  async _attachDeferredListeners() {
+    for(let binding of this._deferredListeners) {
+      await this._listen(binding.event, binding.processMsg, binding.options);
     }
   }
 }
