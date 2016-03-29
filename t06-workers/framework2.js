@@ -133,19 +133,20 @@ export default class {
 
     // setup express
     const app = this._app = express();
-    this._httphost = httpHost;
-    this._httpport = httpPort;
+    this.httpHost = httpHost;
+    this.httpPort = httpPort;
     app.use(bodyParser.json({}));
-    app.post('/receive', (req, res, next) => this._onHttpRequest(req, res).catch(next));
+    app.post('/receive', (req, res, next) => this._onReceiveData(req, res).catch(next));
     app.listen(httpPort, () => debug('express listening on port %d', httpPort));
 
 
     // setup service exchange and queue
     const channel = this._channel;
-    channel.assertExchange(this.appExchange, 'fanout');
-    channel.assertExchange(this.name, 'topic');
-    channel.bindExchange(this.name, this.appExchange, '');
-    channel.assertQueue(this.name, { durable: true });
+    const appExchange = this.appExchange;
+    await channel.assertExchange(appExchange, 'fanout');
+    await channel.assertExchange(this.name, 'topic');
+    await channel.bindExchange(this.name, this.appExchange, '');
+    await channel.assertQueue(this.name, { durable: true });
   }
 
   /**
@@ -168,35 +169,44 @@ export default class {
     return this._channel;
   }
 
-  _onHttpRequest(req, res) {
-    const {data} = req.body;
+  async _onReceiveData(req, res) {
+    debug('inbound http data connection initiated');
+
+    const data = convertFromBuffer(new Buffer(req.body.data.data));
     const {correlationId} = req.body;
+    debug('received data %d for %s', data.length, correlationId);
 
     if(this._callbacks[correlationId]) {
-      this._callbacks[correlationId](data);
-      delete this._callbacks[correlationId];
       res.end();
+
+      // allow response to end before executing callback
+      setImmediate(() => {
+        this._callbacks[correlationId](data);
+        delete this._callbacks[correlationId];
+      });
     } else {
       res.status(404).end();
     }
   }
 
   async emit(event, data, { correlationId = uuid.v4() } = {}) {
+    debug('emitting %s', event);
     const channel = this.channel();
-    const buffer = convertToBuffer(data);
+    //const buffer = convertToBuffer(data);
     const serviceExchange = this.name;
     const sendDataEvent = event + '.senddata';
     const sendDataQueue = event + '.senddata';
     channel.assertQueue(sendDataQueue);
     channel.bindQueue(sendDataQueue, serviceExchange, sendDataQueue);
-    channel.consume(this.name, this._onSendData);
+    channel.consume(sendDataQueue, (msg) => this._onSendDataRequest(msg));
+    debug('consuming %s', sendDataQueue);
 
     // if(buffer.length <= 1024) {
     //   channel.publish(this.appExchange, event, buffer, { correlationId });
     // }
     // else {
 
-      this._writeToCache(correlationId, buffer);
+      this._writeToCache(correlationId, data);
       const headers = { sendDataEvent };
       channel.publish(this.appExchange, event, new Buffer(''), { correlationId, headers });
 
@@ -204,33 +214,37 @@ export default class {
   }
 
   // bind to event.senddata
-  async _onSendData(msg) {
+  async _onSendDataRequest(msg) {
+    debug('received send data request %s', msg.fields.routingKey);
     const channel = this.channel();
     const correlationId = msg.properties.correlationId;
     const replyHost = msg.properties.headers.replyHost;
     const replyPort = msg.properties.headers.replyPort;
+    debug('sending data to %s:%s', replyHost, replyPort);
     try
     {
-      const buffer = this._readFromCache(correlationId);
-      const req = http.send({
+      const cacheValue = await this._readFromCache(correlationId);
+      const buffer = JSON.stringify({ data: convertToBuffer(cacheValue), correlationId });
+      const req = http.request({
         host: replyHost,
         port: replyPort,
         path: '/receive',
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
           'Content-Length': buffer.length
         }
       }, (res) => {
         // TODO requeue original on failure
-        console.log(res.status);
+        debug('sent data and received statusCode %s', res.statusCode);
       });
       req.write(buffer);
       req.end();
+      debug('sending data complete');
     }
     catch(ex) {
       // TODO requeue original on failure
-      console.log(ex.status);
+      console.log(ex.stack);
     }
     channel.ack(msg);
   }
@@ -253,6 +267,71 @@ export default class {
             else resolve(reply);
           });
       });
+    });
+  }
+
+    /**
+   * Binds the method to the event for listening
+   * @private
+   */
+  async on(event, processMsg, { concurrent = 0 } = {}) {
+    const channel = this.channel();
+    const exchange = this.name;
+    const queue = event;
+
+    await channel.assertQueue(event, { durable: false, autoDelete: true, deadLetterExchange: 'deadletter' });
+    await channel.bindQueue(queue, exchange, event);
+
+    if(concurrent > 0)
+      await channel.prefetch(concurrent);
+
+    channel.consume(event, (msg) => this._listenMsg(event, msg, processMsg).catch(err => console.log(err.stack)));
+    debug('listens to %s', event);
+  }
+
+  /**
+   * @private
+   * @param  {[type]} event      [description]
+   * @param  {[type]} msg        [description]
+   * @param  {[type]} processMsg [description]
+   * @return {[type]}            [description]
+   */
+  async _listenMsg(event, msg, processMsg) {
+    let correlationId = msg.properties.correlationId;
+    let sendDataEvent = msg.properties.headers.sendDataEvent;
+    let channel = this.channel();
+    debug('listened to %s %s', event, correlationId);
+
+    try {
+
+      // emit the data request event and await for direct response
+      let input = await this._emitDataRequest({ sendDataEvent, correlationId });
+
+      //let input = convertFromBuffer(msg.content);
+      await processMsg(input, { ctx: this, event });
+
+      // ack the message so that prefetch works
+      await channel.ack(msg);
+    }
+    catch(ex) {
+      console.log('Listend failure: %s', ex.stack);
+
+      // ack the message as complete
+      channel.nack(msg, false, false);
+    }
+  }
+
+  async _emitDataRequest({ sendDataEvent, correlationId }) {
+    let channel = this.channel();
+    let appExchange = this.appExchange;
+    let headers = {
+      replyHost: this.httpHost,
+      replyPort: this.httpPort
+    };
+    return new Promise((resolve) => {
+      this._callbacks[correlationId] = (data) => resolve(data);
+      channel.publish(appExchange, sendDataEvent, new Buffer(''), { correlationId, headers });
+      debug('emitted %s with %j', sendDataEvent, headers);
     });
   }
 }

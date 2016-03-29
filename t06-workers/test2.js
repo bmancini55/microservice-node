@@ -10,6 +10,10 @@ import Framework from './framework2';
   const test = new Framework({ name: 'test' });
   await test.start({ brokerPath: RABBIT, redisUrl: REDIS, httpHost: HTTPHOST, httpPort: HTTPPORT });
 
+  await test.on('echo', (msg) => {
+    console.log('RECEIVED %s', msg);
+  });
+
   await test.emit('echo', 'test');
 
   // await test.respond('echo', async (msg) => {
