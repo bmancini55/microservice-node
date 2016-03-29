@@ -1,33 +1,24 @@
 {
   "parser": "babel-eslint",
-  "plugins": [
-    "react"
-  ],
-  "ecmaFeatures": {
-    "jsx": true
-  },
   "env": {
-    "browser": true,
     "node": true,
-    "jquery": true
-  },
-  "globals": {
-    "Backbone": true
+    "mocha": true
   },
   "rules": {
-    "react/jsx-key": 2,                  // enforce key property in iterated components
-    "react/jsx-no-duplicate-props": 2,   // prevent duplicate properties
-    "react/jsx-no-undef": 2,             // prevent undefined variables in JSX
-    "react/jsx-pascal-case": 2,          // enforce pascal cased components
-    "react/jsx-uses-react": 2,           // require react when using react components
-    "react/jsx-uses-vars": 2,            // prevent unused propeties in jsx
-    "react/no-danger": 2,                // prevent dangerous properties
-    "react/no-did-mount-set-state": 1,   // prevent using setState in didMount
-    "react/no-did-update-set-state": 1,  // prevent using setState in didUpdate
-    "react/no-direct-mutation-state": 1, // prevent modifying .state property
-    "react/no-unknown-property": 2,      // prevent usage of unknown properties
-    "react/react-in-jsx-scope": 2,       // prevent missing React when using JSX
-    "react/wrap-multilines": 2,          // prevent missing parenthesis in multiline JSX
-    "jsx-quotes": [2, "prefer-single"]   // enforce single quotes
+    "no-undef": 2,
+    "no-unused-vars": 2,
+    "strict": 0,
+    "no-multi-spaces": 0,                     // allow funky spacing
+    "no-underscore-dangle": 0,                // breaks with _id
+    "no-use-before-define": [ 1, "nofunc" ],  // allow function expression reference
+    "no-loop-func": 0,                        // can use for of + array.map without issues
+    "quotes": [ 1, "single" ],
+    "camelcase": 0,                           // fails to allow stock_no type properties
+    "curly": 0,                               // prevents inline conditionals
+    "key-spacing": 0,                         // can't align keys
+    "new-cap": 0,                             // can't do OrderMapper(db)
+    "semi": [2, "always"]  ,                  // force semi-colons
+    "no-console": 0,                          // allow use of console
+    "no-unused-expressions": 0                // allow chai expect('').is.not.null;
   }
 }
