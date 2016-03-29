@@ -1,3 +1,29 @@
+// TODO
+//   app exchange as fanout
+//
+//   worker exchange
+//   - bind to app exchange (receives all messages)
+//
+//   worker queue
+//   - bind to worker exchange on topics for response
+//   - bind to worker exchange on topics for listen
+//
+//   middleware
+//
+//   scoped calls with automatic correlationId propagation
+//   - should be taken care of with middleware ("framework scope" passed to sub methods)
+//
+//   deadlettering middleware
+//
+//   error handling middleware
+//
+//   unit testing
+//
+//   Goals -> conventions that are followed
+//   - simplify coding thought needed to build distributed systems
+//   - "scale-out" first approach to architecture
+//   - encourage event collaboration first, request/response second
+
 import amqp from 'amqplib';
 import uuid from 'node-uuid';
 import Debug from 'debug';
