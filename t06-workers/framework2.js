@@ -192,7 +192,6 @@ export default class {
   async emit(event, data, { correlationId = uuid.v4() } = {}) {
     debug('emitting %s', event);
     const channel = this.channel();
-    //const buffer = convertToBuffer(data);
     const serviceExchange = this.name;
     const sendDataEvent = event + '.senddata';
     const sendDataQueue = event + '.senddata';
@@ -201,16 +200,9 @@ export default class {
     channel.consume(sendDataQueue, (msg) => this._onSendDataRequest(msg));
     debug('consuming %s', sendDataQueue);
 
-    // if(buffer.length <= 1024) {
-    //   channel.publish(this.appExchange, event, buffer, { correlationId });
-    // }
-    // else {
-
-      this._writeToCache(correlationId, data);
-      const headers = { sendDataEvent };
-      channel.publish(this.appExchange, event, new Buffer(''), { correlationId, headers });
-
-    //}
+    this._writeToCache(correlationId, data);
+    const headers = { sendDataEvent };
+    channel.publish(this.appExchange, event, new Buffer(''), { correlationId, headers });
   }
 
   // bind to event.senddata
