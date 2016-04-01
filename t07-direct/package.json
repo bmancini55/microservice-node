@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "description": "Testing worker framework",
   "scripts": {
-    "start:test": "DEBUG=framework* RABBIT=192.168.99.100 REDIS=192.168.99.100 HTTPHOST=127.0.0.1 $(npm bin)/babel-node test.js"
+    "start:test": "DEBUG=framework* RABBIT=192.168.99.100 REDIS=192.168.99.100 HTTPHOST=127.0.0.1 $(npm bin)/babel-node test.js",
+    "start:file": "DEBUG=framework* RABBIT=192.168.99.100 REDIS=192.168.99.100 HTTPHOST=127.0.0.1 $(npm bin)/babel-node file-service.js"
   },
   "author": "Brian <bmancini@gmail.com>",
   "license": "MIT",

@@ -54,10 +54,13 @@
 //
 // TODO
 //
-//  - scoped calls
-//  - deadlettering
 //  - failed req/res requeue
-//
+//  - deadlettering
+//  - correlationId collisions in callback hash
+//  - pipe senddata requests directly to exchange
+//  - remove express
+//  - add middleware
+//  - add configuration for caching
 
 import http from 'http';
 import amqp from 'amqplib';
@@ -68,7 +71,7 @@ import bodyParser from 'body-parser';
 import Debug from 'debug';
 const traceCore = Debug('framework:core');
 const traceListener = Debug('framework:trace-list');
-const traceEmitter = Debug('framework:trace-emit')
+const traceEmitter = Debug('framework:trace-emit');
 
 const convertToBuffer = (result) => {
   let type;
@@ -165,6 +168,7 @@ export default class {
   async stop() {
     this._broker.close();
     this._app.close();
+    this._redis.close();
   }
 
   /**
@@ -214,7 +218,7 @@ export default class {
 
   // bind to event.senddata
   async _onSendDataRequest(msg) {
-    traceEmitter('received %s event', msg.fields.routingKey);
+    traceEmitter('received %s event for %s', msg.fields.routingKey, msg.properties.correlationId);
     const channel = this.channel();
     const correlationId = msg.properties.correlationId;
     const replyHost = msg.properties.headers.replyHost;
@@ -251,14 +255,21 @@ export default class {
     return new Promise((resolve, reject) => {
       this._redis.get(key, (err, reply) => {
         if(err) reject(err);
-        else    resolve(reply);
+        else {
+          let strJson = reply;
+          let json = JSON.parse(strJson);
+          let data = json.data;
+          resolve(data);
+        }
       });
     });
   }
 
   async _writeToCache(key, data) {
     return new Promise((resolve, reject) => {
-      this._redis.set(key, data, (err, reply) => {
+      let json = { data: data };
+      let strJson = JSON.stringify(json);
+      this._redis.set(key, strJson, (err, reply) => {
         if(err) reject(err);
         else this._redis.expire(key, 60, (err2) => {
             if(err2) reject(err2);
@@ -305,9 +316,12 @@ export default class {
       // emit the data request event and await for direct response
       let input = await this._emitDataRequest({ sendDataEvent, correlationId });
 
-      //let input = convertFromBuffer(msg.content);
+      // generate scoped emit
+      let emit = (event, data) => this.emit(event, data, { correlationId });
+
+      // processing message
       traceListener('processing message');
-      await processMsg(input, { ctx: this, event });
+      await processMsg(input, { ctx: this, emit: emit, event: event, msg: msg });
 
       // ack the message so that prefetch works
       await channel.ack(msg);
@@ -321,6 +335,7 @@ export default class {
   }
 
   async _emitDataRequest({ sendDataEvent, correlationId }) {
+    traceListener('emitting %s for %s', sendDataEvent, correlationId);
     let channel = this.channel();
     let appExchange = this.appExchange;
     let headers = {

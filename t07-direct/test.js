@@ -12,10 +12,15 @@ let output = Debug('framework:output');
   const test = new Framework({ name: 'test' });
   await test.start({ brokerPath: RABBIT, redisUrl: REDIS, httpHost: HTTPHOST, httpPort: HTTPPORT });
 
-  await test.on('echo', (msg) => {
-    output('RECEIVED %s', msg);
+  // listen for file available events that will contain the
+  // actual file contents that were submitted by the file service
+  await test.on('file.available', (data) => {
+    console.log(data);
   });
 
-  await test.emit('echo', 'test');
+  // Emit a file.uploaded event that the file service will listen to
+  // and persist the file bits
+  await test.emit('file.uploaded', { name: 'test.txt', data: 'This is test data' });
+
 
 })().catch(e => console.log(e.stack));
